@@ -1,5 +1,12 @@
 # from mmdet.core.bbox.ioucalculators
+import torch
 
+def fp16_clamp(x, min=None, max=None):
+    if not x.is_cuda and x.dtype == torch.float16:
+        # clamp for cpu float16, tensor fp16 has no clamp implementation
+        return x.float().clamp(min, max).half()
+
+    return x.clamp(min, max)
 
 def bbox_overlaps(bboxes1, bboxes2, mode='iou', is_aligned=False, eps=1e-6):
     """Calculate overlap between two set of bboxes.

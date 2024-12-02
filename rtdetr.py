@@ -32,7 +32,7 @@ class RTDETR:
       else:
           print("Wrong image format.")
 
-      transforms = T.Compose([T.Resize((640, 640)), T.ToTensor()])
+      transforms = T.Compose([T.Resize((1280, 1280)), T.ToTensor()])
       t_image = transforms(image)[None]
 
       output = self.session.run(output_names=None, input_feed={'images': t_image.data.numpy(), "orig_target_sizes": orig_size.data.numpy()})

@@ -45,6 +45,14 @@ def draw_ufp_result(results, img, img_name, w, h, anno_root=None):
     img_data = cv2.imread(img)
     if anno_root:
         anno_path = os.path.join(anno_root, img_name[:-4] + '.txt')
+        if not os.path.exists(anno_path):
+         # Ensure the directory exists
+         os.makedirs(os.path.dirname(anno_path), exist_ok=True)
+         
+         # Create and initialize the .txt file
+         with open(anno_path, 'w') as f:
+            f.write("")  # Add any default content here if needed
+            
         anno = open(anno_path)
         for rec in anno.readlines():
             rec = rec.strip()
@@ -94,8 +102,8 @@ def main():
     ufp_anno_output_path = args.ufp_anno_output_path
     txt_path = args.txt_path
 
-
-    detector = RTDETR("/data/repos/RT-DETR/rtdetrv2_pytorch/model.onnx") #init_detector(detecor_config, detecor_config_ckpt, device=device)
+#output/rtdetrv2_r18vd_visdrone/best.pth
+    detector = RTDETR("/data/repos/RT-DETR/rtdetrv2_pytorch/rtdetrv2s_visdrone_1280_new.onnx") #init_detector(detecor_config, detecor_config_ckpt, device=device)
     with open(dataset_anno) as f:
         json_info = json.load(f)
     annotation_set = {}

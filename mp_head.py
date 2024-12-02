@@ -5,9 +5,122 @@ from collections import Counter
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
-from mmcv.cnn import ConvModule, Scale, bias_init_with_prob, normal_init
+#from mmcv.cnn import ConvModule, Scale, bias_init_with_prob, normal_init
 #from mmcv.runner import force_fp32
+def normal_init(module, mean=0, std=1, bias=0):
+    if hasattr(module, 'weight') and module.weight is not None:
+        nn.init.normal_(module.weight, mean, std)
+    if hasattr(module, 'bias') and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+def bias_init_with_prob(prior_prob):
+    """initialize conv/fc bias value according to a given probability value."""
+    bias_init = float(-np.log((1 - prior_prob) / prior_prob))
+    return bias_init
+
+class Scale(nn.Module):
+    """A learnable scale parameter.
+
+    This layer scales the input by a learnable factor. It multiplies a
+    learnable scale parameter of shape (1,) with input of any shape.
+
+    Args:
+        scale (float): Initial value of scale factor. Default: 1.0
+    """
+
+    def __init__(self, scale=1.0):
+        super(Scale, self).__init__()
+        self.scale = nn.Parameter(torch.tensor(scale, dtype=torch.float))
+
+    def forward(self, x):
+        return x * self.scale
+
+
+"""reproduced from mmcv with pytorch only by GPT"""
+class ConvModule(nn.Module):
+    def __init__(self, 
+                 in_channels, 
+                 out_channels, 
+                 kernel_size, 
+                 stride=1, 
+                 padding=0, 
+                 dilation=1, 
+                 groups=1, 
+                 bias=True, 
+                 norm_cfg=None, 
+                 act_cfg=dict(type='ReLU'), 
+                 inplace=True):
+        """
+        A simple convolutional module with optional normalization and activation layers.
+
+        Args:
+            in_channels (int): Number of input channels.
+            out_channels (int): Number of output channels.
+            kernel_size (int or tuple): Size of the convolutional kernel.
+            stride (int or tuple, optional): Stride of the convolution. Default: 1.
+            padding (int or tuple, optional): Padding added to all four sides. Default: 0.
+            dilation (int or tuple, optional): Spacing between kernel elements. Default: 1.
+            groups (int, optional): Number of blocked connections from input to output channels. Default: 1.
+            bias (bool, optional): If `True`, adds a learnable bias to the output. Default: True.
+            norm_cfg (dict or None, optional): Config for normalization (e.g., BatchNorm). Default: None.
+            act_cfg (dict or None, optional): Config for activation (e.g., ReLU). Default: dict(type='ReLU').
+            inplace (bool, optional): Whether to use inplace activation. Default: True.
+        """
+        super().__init__()
+        
+        # Convolutional layer
+        self.conv = nn.Conv2d(
+            in_channels, 
+            out_channels, 
+            kernel_size, 
+            stride=stride, 
+            padding=padding, 
+            dilation=dilation, 
+            groups=groups, 
+            bias=bias
+        )
+        
+        # Normalization layer
+        if norm_cfg is not None:
+            norm_type = norm_cfg.get('type', 'BN')  # Default to BatchNorm
+            if norm_type == 'BN':
+                self.norm = nn.BatchNorm2d(out_channels)
+            elif norm_type == 'LN':
+                self.norm = nn.LayerNorm(out_channels)
+            elif norm_type == 'GN':
+                num_groups = norm_cfg.get('num_groups', 32)
+                self.norm = nn.GroupNorm(num_groups, out_channels)
+            else:
+                raise ValueError(f"Unsupported norm type: {norm_type}")
+        else:
+            self.norm = None
+        
+        # Activation layer
+        if act_cfg is not None:
+            act_type = act_cfg.get('type', 'ReLU')
+            if act_type == 'ReLU':
+                self.act = nn.ReLU(inplace=inplace)
+            elif act_type == 'LeakyReLU':
+                negative_slope = act_cfg.get('negative_slope', 0.01)
+                self.act = nn.LeakyReLU(negative_slope=negative_slope, inplace=inplace)
+            elif act_type == 'Sigmoid':
+                self.act = nn.Sigmoid()
+            elif act_type == 'Tanh':
+                self.act = nn.Tanh()
+            else:
+                raise ValueError(f"Unsupported activation type: {act_type}")
+        else:
+            self.act = None
+
+    def forward(self, x):
+        x = self.conv(x)
+        if self.norm is not None:
+            x = self.norm(x)
+        if self.act is not None:
+            x = self.act(x)
+        return x
 
 
 import nltk
@@ -19,7 +132,7 @@ from losses.bbox import bbox_overlaps
 
 #from mmdet.core.utils import filter_scores_and_topk
 #from ..builder import HEADS, build_loss
-from .gfl_head import GFLHead
+from gfl_head import GFLHead
 
 class MPHead(GFLHead):
     """
